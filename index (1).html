@@ -1,0 +1,456 @@
+<!doctype html>
+<html lang="id" class="h-full scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PORTAL E PERPUST CHONDRODIMUKO</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore-compat.js"></script>
+
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                    colors: {
+                        national: { 50: '#eff6ff', 100: '#dbeafe', 500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8', 800: '#1e40af', 900: '#1e3a8a' }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; color: #0f172a; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 10px; }
+        .page { display: none; opacity: 0; transition: opacity 0.3s ease-in-out; }
+        .page.active { display: block; opacity: 1; }
+        .page.active.flex { display: flex; } 
+        .admin-tab { display: none; }
+        .admin-tab.active { display: block; }
+        .glass-nav { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(8px); border-bottom: 1px solid #e2e8f0; }
+        #loading-overlay { display: none; position: fixed; inset: 0; background: rgba(255,255,255,0.9); z-index: 9999; flex-direction: column; align-items: center; justify-content: center; }
+        .spinner { width: 50px; height: 50px; border: 4px solid #e2e8f0; border-top: 4px solid #1e40af; border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .modal { display: none; position: fixed; inset: 0; z-index: 1000; background: rgba(15, 23, 42, 0.75); backdrop-filter: blur(4px); align-items: center; justify-content: center; padding: 1rem; }
+        .modal.active { display: flex; animation: fadeIn 0.2s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+    </style>
+</head>
+<body class="antialiased">
+
+    <div id="loading-overlay">
+        <div class="spinner mb-4"></div>
+        <p class="text-sm font-bold text-national-800 tracking-wide animate-pulse" id="loading-text">Memproses Data...</p>
+    </div>
+
+    <!-- Float Button -->
+    <button id="cart-float-btn" onclick="openModal('cart-modal')" class="fixed bottom-6 right-6 md:bottom-10 md:right-10 z-[60] bg-national-700 text-white px-5 py-3 md:px-6 md:py-4 rounded-full flex items-center gap-3 shadow-2xl transition-all hover:bg-national-800 hover:scale-105 border-4 border-white">
+        <span class="text-lg md:text-xl">📚</span>
+        <span class="font-semibold text-xs md:text-sm hidden sm:block">Pinjam Buku</span>
+        <span id="cart-count" class="bg-rose-500 text-white text-[10px] md:text-xs font-bold px-2 py-0.5 rounded-full">0</span>
+    </button>
+
+    <!-- Navigation -->
+    <nav id="visitor-nav" class="sticky top-0 z-50 glass-nav h-16 md:h-20 flex items-center px-4 md:px-8">
+        <div class="max-w-7xl mx-auto w-full flex justify-between items-center">
+            <div class="flex items-center gap-3 cursor-pointer" onclick="navigateTo('home')">
+                <div class="relative">
+                    <img src="https://res.cloudinary.com/dr3evkwcu/image/upload/v1775628760/Tanpa_judul_etvfyy.png" alt="Logo" class="w-10 h-10 md:w-12 md:h-12 object-contain">
+                    <span class="absolute bottom-0 right-0 block h-3 w-3 rounded-full bg-emerald-500 border-2 border-white"></span>
+                </div>
+                <div class="flex flex-col">
+                    <span class="text-[8px] md:text-[10px] font-bold text-national-600 uppercase tracking-widest leading-none">Perpustakaan</span>
+                    <span class="text-sm md:text-lg font-extrabold text-slate-900 leading-none uppercase mt-0.5">CHONDRODIMUKO</span>
+                </div>
+            </div>
+            
+            <div class="hidden md:flex items-center gap-8">
+                <button onclick="navigateTo('home')" class="text-sm font-semibold text-slate-600 hover:text-national-600 transition">Beranda</button>
+                <button onclick="navigateTo('books')" class="text-sm font-semibold text-slate-600 hover:text-national-600 transition">Katalog Pustaka</button>
+                <div class="h-5 w-[1px] bg-slate-300"></div>
+                <button onclick="navigateTo('login')" class="flex items-center gap-2 bg-slate-900 text-white px-5 py-2.5 rounded-lg text-xs font-bold transition hover:bg-national-700 shadow-md">
+                    <span>🔒</span> Portal Admin
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <main id="main-content">
+        <!-- Home Page -->
+        <div id="home-page" class="page active">
+            <div class="bg-gradient-to-b from-national-900 to-national-800 text-white pt-20 pb-32 px-6 text-center">
+                <div class="max-w-7xl mx-auto">
+                    <span class="inline-block px-4 py-1 bg-white/10 backdrop-blur-md text-white border border-white/20 text-[10px] md:text-xs font-bold uppercase tracking-widest rounded-full mb-6">Database Terintegrasi Spreadsheet</span>
+                    <h1 class="text-4xl md:text-6xl font-extrabold mb-6 leading-tight">E-Perpustakaan <br> Chondrodimuko</h1>
+                    <p class="text-national-100 text-sm md:text-lg mb-10 max-w-2xl mx-auto">Akses koleksi buku literatur lengkap secara digital. Cek ketersediaan stok secara real-time dari mana saja.</p>
+                    <button onclick="navigateTo('books')" class="bg-white text-national-800 px-8 py-4 rounded-xl font-bold shadow-xl hover:bg-slate-50 transition">Lihat Katalog Buku</button>
+                </div>
+            </div>
+            <div class="max-w-7xl mx-auto px-6 -mt-12 pb-20">
+                <div class="bg-white rounded-2xl shadow-xl border border-slate-100 p-8">
+                    <div class="text-center mb-8"><h2 class="text-xl font-bold text-slate-800">Kategori Populer</h2></div>
+                    <div id="category-stats-container" class="grid grid-cols-2 md:grid-cols-4 gap-4"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Books Page -->
+        <div id="books-page" class="page px-4 md:px-8 py-12 bg-slate-50 min-h-screen">
+            <div class="max-w-7xl mx-auto">
+                <div class="flex flex-col md:flex-row items-center justify-between mb-8 gap-4">
+                    <h2 class="text-2xl font-extrabold text-slate-900">Katalog Pustaka Utama</h2>
+                    <div class="relative w-full md:w-96">
+                        <input type="text" id="main-search" oninput="renderBooks()" placeholder="Cari judul, penulis, atau kategori..." class="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-national-500 shadow-sm text-sm">
+                        <span class="absolute left-4 top-1/2 -translate-y-1/2">🔍</span>
+                    </div>
+                </div>
+                <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm">
+                            <thead class="bg-slate-50 border-b border-slate-200">
+                                <tr>
+                                    <th class="px-6 py-4 font-bold text-slate-500 uppercase text-xs">Informasi Buku</th>
+                                    <th class="px-6 py-4 font-bold text-slate-500 uppercase text-xs text-center">Kategori</th>
+                                    <th class="px-6 py-4 font-bold text-slate-500 uppercase text-xs text-center">Stok</th>
+                                    <th class="px-6 py-4 font-bold text-slate-500 uppercase text-xs text-right">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody id="books-table-body" class="divide-y divide-slate-100"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Login Page -->
+        <div id="login-page" class="page flex items-center justify-center min-h-[calc(100vh-80px)] px-6">
+            <div class="w-full max-w-md bg-white p-10 rounded-3xl border shadow-2xl text-center">
+                <img src="https://res.cloudinary.com/dr3evkwcu/image/upload/v1775628760/Tanpa_judul_etvfyy.png" class="w-16 h-16 mx-auto mb-4">
+                <h2 class="text-2xl font-bold mb-8">Login Pustakawan</h2>
+                <form onsubmit="handleFirebaseLogin(event)" class="space-y-4">
+                    <input type="email" id="email-input" placeholder="Email Admin" required class="w-full p-3 bg-slate-50 border rounded-xl outline-none">
+                    <input type="password" id="pass-input" placeholder="Password" required class="w-full p-3 bg-slate-50 border rounded-xl outline-none">
+                    <button type="submit" class="w-full bg-slate-900 text-white py-3 rounded-xl font-bold transition hover:bg-national-700">MASUK DASHBOARD</button>
+                </form>
+                <button onclick="navigateTo('home')" class="mt-6 text-xs text-slate-400 font-bold hover:text-national-600 transition">← KEMBALI</button>
+            </div>
+        </div>
+    </main>
+
+    <!-- Admin Layout -->
+    <div id="admin-layout" class="hidden flex h-screen bg-slate-50">
+        <aside class="w-64 bg-slate-900 text-white flex flex-col">
+            <div class="p-6 border-b border-slate-800 flex items-center gap-3">
+                <img src="https://res.cloudinary.com/dr3evkwcu/image/upload/v1775628760/Tanpa_judul_etvfyy.png" class="w-8 h-8">
+                <span class="font-bold text-sm">ADMIN PANEL</span>
+            </div>
+            <nav class="flex-1 p-4 space-y-2">
+                <button id="btn-tab-request" onclick="showAdminTab('request')" class="w-full flex items-center justify-between px-4 py-3 bg-national-600 rounded-lg text-sm transition">
+                    <span>🔄 Antrean</span>
+                    <span id="req-badge" class="bg-white text-national-700 px-2 py-0.5 rounded-full text-[10px] font-black">0</span>
+                </button>
+                <button id="btn-tab-history" onclick="showAdminTab('history')" class="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-800 rounded-lg text-sm transition text-slate-400">
+                    <span>📜 Riwayat Selesai</span>
+                </button>
+            </nav>
+            <div class="p-4 border-t border-slate-800">
+                <button onclick="handleFirebaseLogout()" class="w-full bg-rose-500 text-white py-2 rounded-lg text-xs font-bold">Keluar Sesi</button>
+            </div>
+        </aside>
+
+        <main class="flex-1 overflow-y-auto p-8">
+            <div class="max-w-6xl mx-auto">
+                <h2 id="admin-title" class="text-2xl font-bold mb-8">Antrean Peminjaman Baru</h2>
+                <div id="tab-request" class="admin-tab active">
+                    <div class="bg-white rounded-xl border shadow-sm overflow-hidden">
+                        <table class="w-full text-left text-sm">
+                            <thead class="bg-slate-50 border-b">
+                                <tr>
+                                    <th class="px-6 py-4">Pemustaka</th>
+                                    <th class="px-6 py-4">Kontak</th>
+                                    <th class="px-6 py-4">Buku</th>
+                                    <th class="px-6 py-4 text-center">Status</th>
+                                    <th class="px-6 py-4 text-right">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody id="admin-requests-table" class="divide-y"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div id="tab-history" class="admin-tab">
+                    <div class="bg-white rounded-xl border shadow-sm overflow-hidden">
+                        <table class="w-full text-left text-sm">
+                            <thead class="bg-slate-50 border-b">
+                                <tr>
+                                    <th class="px-6 py-4">Nama Pemustaka</th>
+                                    <th class="px-6 py-4">Buku Yang Dipinjam</th>
+                                    <th class="px-6 py-4">Tanggal Persetujuan</th>
+                                    <th class="px-6 py-4 text-center">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="admin-history-table" class="divide-y text-slate-600"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modals -->
+    <div id="cart-modal" class="modal">
+        <div class="bg-white w-full max-w-lg p-8 rounded-2xl shadow-2xl relative">
+            <button onclick="closeModal('cart-modal')" class="absolute top-4 right-4 text-slate-400">✕</button>
+            <h3 class="text-xl font-bold mb-6 border-b pb-4">Booking Peminjaman Buku</h3>
+            <div id="cart-items" class="mb-6 space-y-2 max-h-40 overflow-y-auto"></div>
+            <form onsubmit="submitPeminjaman(event)" class="space-y-4">
+                <div class="grid grid-cols-2 gap-4">
+                    <input type="text" id="peminjam-nama" placeholder="Nama Lengkap" required class="w-full p-2.5 border rounded-lg text-sm">
+                    <input type="text" id="peminjam-id" placeholder="NIM / NIK" required class="w-full p-2.5 border rounded-lg text-sm">
+                </div>
+                <input type="tel" id="peminjam-telp" placeholder="Nomor WhatsApp (Contoh: 08123456789)" required class="w-full p-2.5 border rounded-lg text-sm">
+                <div class="space-y-1">
+                    <label class="text-[10px] font-bold text-slate-400 uppercase">Upload KTP/KTM</label>
+                    <input type="file" id="peminjam-ktp" accept="image/*" required class="w-full text-xs">
+                </div>
+                <div class="space-y-1">
+                    <label class="text-[10px] font-bold text-slate-400 uppercase">Jadwal Pengambilan Buku</label>
+                    <input type="datetime-local" id="peminjam-waktu" required class="w-full p-2.5 border rounded-lg text-sm">
+                </div>
+                <button type="submit" class="w-full bg-national-600 text-white py-3 rounded-lg font-bold">Kirim Permohonan</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="receipt-modal" class="modal">
+        <div class="bg-white w-full max-w-sm p-6 rounded-2xl text-center shadow-2xl">
+            <div class="text-4xl mb-4">🧾</div>
+            <h3 class="text-xl font-bold mb-2">Booking Berhasil</h3>
+            <p class="text-xs text-slate-500 mb-6">Silakan konfirmasi ke WhatsApp Admin.</p>
+            <div id="receipt-content" class="text-left bg-slate-50 p-4 rounded-xl text-sm mb-6 space-y-2"></div>
+            <button onclick="sendToWhatsApp()" class="w-full bg-emerald-500 text-white py-3 rounded-xl font-bold">Kirim ke WhatsApp Admin</button>
+        </div>
+    </div>
+
+    <script>
+        // FIREBASE CONFIG
+        const firebaseConfig = {
+            apiKey: "AIzaSyDqwEZUwycI41OrgS8fCf_506ubmLWmSko",
+            authDomain: "perpustakaan-chondro.firebaseapp.com",
+            projectId: "perpustakaan-chondro",
+            storageBucket: "perpustakaan-chondro.firebasestorage.app",
+            messagingSenderId: "110663006921",
+            appId: "1:110663006921:web:9e6c6a85f1d68531c26b18"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+
+        const SHEET_API_URL = "https://script.google.com/macros/s/AKfycbx22B9O3BP6nxfzkuasd5QkxoHMVwEmZM6VrflK55f9EtC4AXgmBhPnx_XI3eLPMa_ong/exec";
+        const ADMIN_WA_NUMBER = "6282332920552";
+        const CLOUDINARY_CLOUD_NAME = "dr3evkwcu";
+        const CLOUDINARY_UPLOAD_PRESET = "perpust_upload";
+
+        let allBooks = [];
+        let cart = [];
+        let currentReceiptData = null;
+
+        // --- SISTEM ROUTING (BACK/NEXT) ---
+        function navigateTo(pageId) {
+            location.hash = pageId; // Mengubah URL Hash (#home, #books, dll)
+        }
+
+        function handleRouting() {
+            const hash = location.hash.replace('#', '') || 'home';
+            showPage(hash);
+        }
+
+        window.addEventListener('hashchange', handleRouting);
+        window.addEventListener('load', handleRouting);
+
+        function showPage(id) { 
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            const targetPage = document.getElementById(id + '-page');
+            if(targetPage) {
+                targetPage.classList.add('active');
+                window.scrollTo(0,0);
+            }
+        }
+        // ----------------------------------
+
+        async function fetchBooks() {
+            showLoading(true, "Sinkronisasi Data...");
+            try {
+                const response = await fetch(SHEET_API_URL);
+                const data = await response.json();
+                allBooks = data.map((b, index) => ({
+                    id: index,
+                    title: b.judul || "Tanpa Judul",
+                    author: b.penulis || "Anonim",
+                    category: (b.kategori || "Umum").trim(),
+                    stock: parseInt(b.stok) || 0
+                }));
+                renderBooks();
+                renderCategoryStats();
+            } catch (err) { console.error("API Error:", err); }
+            showLoading(false);
+        }
+
+        function renderBooks() {
+            const q = document.getElementById('main-search')?.value.toLowerCase() || '';
+            const tbody = document.getElementById('books-table-body');
+            const filtered = allBooks.filter(b => b.title.toLowerCase().includes(q) || b.author.toLowerCase().includes(q) || b.category.toLowerCase().includes(q));
+            if (tbody) {
+                tbody.innerHTML = filtered.map(b => `
+                <tr class="hover:bg-slate-50 transition">
+                    <td class="px-6 py-4">
+                        <div class="font-bold text-slate-800 text-sm">${b.title}</div>
+                        <div class="text-[10px] text-slate-500 mt-0.5 uppercase">Penulis: ${b.author}</div>
+                    </td>
+                    <td class="px-6 py-4 text-center"><span class="bg-slate-100 text-slate-600 px-2 py-1 rounded text-[10px] font-bold uppercase">${b.category}</span></td>
+                    <td class="px-6 py-4 text-center font-black text-slate-700">${b.stock}</td>
+                    <td class="px-6 py-4 text-right">
+                        ${b.stock > 0 
+                            ? `<button onclick="addToCart('${b.title.replace(/'/g, "\\'")}')" class="bg-national-600 text-white px-4 py-2 rounded-lg text-xs font-bold shadow-sm">Pinjam</button>` 
+                            : `<span class="text-rose-500 text-xs font-bold italic">Habis</span>`
+                        }
+                    </td>
+                </tr>`).join('');
+            }
+        }
+
+        function renderCategoryStats() {
+            const container = document.getElementById('category-stats-container');
+            const stats = {};
+            allBooks.forEach(b => { stats[b.category] = (stats[b.category] || 0) + 1; });
+            const sorted = Object.entries(stats).sort((a,b) => b[1]-a[1]).slice(0, 4);
+            container.innerHTML = sorted.map(([cat, count]) => `
+                <div class="bg-slate-50 p-4 rounded-xl border text-center">
+                    <div class="text-xs font-bold text-slate-400 uppercase mb-1">${cat}</div>
+                    <div class="text-xl font-black text-national-700">${count} Judul</div>
+                </div>`).join('');
+        }
+
+        function addToCart(title) {
+            if(!cart.includes(title)) {
+                cart.push(title);
+                updateCartUI();
+            } else { alert("Buku sudah ada di daftar."); }
+        }
+
+        function updateCartUI() {
+            document.getElementById('cart-count').textContent = cart.length;
+            const container = document.getElementById('cart-items');
+            container.innerHTML = cart.map((item, idx) => `
+                <div class="flex justify-between items-center bg-slate-50 p-2 rounded-lg border">
+                    <span class="text-xs font-bold truncate pr-4">${item}</span>
+                    <button onclick="cart.splice(${idx},1);updateCartUI();" class="text-rose-500 font-bold text-xs">Hapus</button>
+                </div>`).join('');
+        }
+
+        async function submitPeminjaman(e) {
+            e.preventDefault();
+            if(cart.length === 0) return alert("Pilih buku dahulu.");
+            const fileKtp = document.getElementById('peminjam-ktp').files[0];
+            showLoading(true, "Mengunggah data...");
+            try {
+                const formData = new FormData();
+                formData.append('file', fileKtp);
+                formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+                const cloudRes = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, { method: 'POST', body: formData });
+                const cloudData = await cloudRes.json();
+
+                const payload = {
+                    nama: document.getElementById('peminjam-nama').value,
+                    idAnggota: document.getElementById('peminjam-id').value,
+                    noTelp: document.getElementById('peminjam-telp').value,
+                    waktuAmbil: document.getElementById('peminjam-waktu').value,
+                    ktpUrl: cloudData.secure_url,
+                    buku: cart,
+                    status: "Menunggu Persetujuan",
+                    tanggal: firebase.firestore.FieldValue.serverTimestamp()
+                };
+
+                await db.collection("peminjaman").add(payload);
+                currentReceiptData = payload;
+                document.getElementById('receipt-content').innerHTML = `<p><strong>Nama:</strong> ${payload.nama}</p><p><strong>Buku:</strong> ${payload.buku.join(', ')}</p>`;
+                cart = []; updateCartUI(); closeModal('cart-modal'); openModal('receipt-modal');
+            } catch (err) { alert("Error simpan data."); }
+            showLoading(false);
+        }
+
+        function sendToWhatsApp() {
+            const msg = `Halo Admin, saya mengajukan peminjaman buku:\n\nNama: ${currentReceiptData.nama}\nBuku: ${currentReceiptData.buku.join(', ')}`;
+            window.open(`https://wa.me/${ADMIN_WA_NUMBER}?text=${encodeURIComponent(msg)}`, "_blank");
+        }
+
+        function showAdminTab(tab) {
+            document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
+            document.getElementById('tab-' + tab).classList.add('active');
+            document.getElementById('btn-tab-request').className = tab === 'request' ? 'w-full flex items-center justify-between px-4 py-3 bg-national-600 rounded-lg text-sm transition' : 'w-full flex items-center justify-between px-4 py-3 hover:bg-slate-800 rounded-lg text-sm transition text-slate-400';
+            document.getElementById('btn-tab-history').className = tab === 'history' ? 'w-full flex items-center justify-between px-4 py-3 bg-national-600 rounded-lg text-sm transition' : 'w-full flex items-center justify-between px-4 py-3 hover:bg-slate-800 rounded-lg text-sm transition text-slate-400';
+            document.getElementById('admin-title').textContent = tab === 'request' ? 'Antrean Peminjaman Baru' : 'Riwayat Peminjaman Selesai';
+        }
+
+        function listenToAdmin() {
+            db.collection("peminjaman").orderBy("tanggal", "desc").onSnapshot(snap => {
+                const requests = []; const history = [];
+                snap.docs.forEach(doc => {
+                    const d = doc.data(); const item = { id: doc.id, ...d };
+                    if (d.status === 'Menunggu Persetujuan') requests.push(item);
+                    else history.push(item);
+                });
+                document.getElementById('req-badge').textContent = requests.length;
+                document.getElementById('admin-requests-table').innerHTML = requests.map(d => `
+                    <tr>
+                        <td class="px-6 py-4"><div class="font-bold">${d.nama}</div><a href="${d.ktpUrl}" target="_blank" class="text-[10px] text-blue-600 underline">Lihat KTP</a></td>
+                        <td class="px-6 py-4"><a href="https://wa.me/${d.noTelp}" target="_blank" class="bg-emerald-100 text-emerald-700 px-2 py-1 rounded text-xs font-bold">💬 ${d.noTelp}</a></td>
+                        <td class="px-6 py-4 text-xs">${d.buku.join(', ')}</td>
+                        <td class="px-6 py-4 text-center"><span class="bg-amber-100 text-amber-700 px-2 py-1 rounded text-[10px] font-bold">Pending</span></td>
+                        <td class="px-6 py-4 text-right"><button onclick="db.collection('peminjaman').doc('${d.id}').update({status:'Disetujui', tglSetuju: new Date().toLocaleString()})" class="bg-national-600 text-white px-3 py-1 rounded text-xs font-bold">Setujui</button></td>
+                    </tr>`).join('');
+                document.getElementById('admin-history-table').innerHTML = history.map(d => `
+                    <tr>
+                        <td class="px-6 py-4 font-bold">${d.nama}</td>
+                        <td class="px-6 py-4 text-xs">${d.buku.join(', ')}</td>
+                        <td class="px-6 py-4 text-xs">${d.tglSetuju || '-'}</td>
+                        <td class="px-6 py-4 text-center"><span class="bg-emerald-100 text-emerald-700 px-2 py-1 rounded text-[10px] font-bold">Berhasil</span></td>
+                    </tr>`).join('');
+            });
+        }
+
+        async function handleFirebaseLogin(e) {
+            e.preventDefault();
+            try {
+                await auth.signInWithEmailAndPassword(document.getElementById('email-input').value, document.getElementById('pass-input').value);
+                location.reload();
+            } catch (err) { alert("Login Gagal."); }
+        }
+
+        function handleFirebaseLogout() { auth.signOut().then(() => location.reload()); }
+        function openModal(id) { document.getElementById(id).classList.add('active'); }
+        function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+        function showLoading(v, t) { 
+            document.getElementById('loading-overlay').style.display = v ? 'flex' : 'none';
+            document.getElementById('loading-text').textContent = t;
+        }
+
+        auth.onAuthStateChanged(user => {
+            if (user) {
+                document.getElementById('visitor-nav').classList.add('hidden');
+                document.getElementById('main-content').classList.add('hidden');
+                document.getElementById('admin-layout').classList.remove('hidden');
+                listenToAdmin();
+            }
+        });
+
+        window.onload = fetchBooks;
+    </script>
+</body>
+</html>
